@@ -398,7 +398,9 @@ run_trial <- function(weeks=16, n_packs=5,
 
 ```
 
-# Generate Counterfactuals
+# Counterfactual Means 
+
+Approximation of the truth under each regime of interest.
 
 
 ```{r}
@@ -582,6 +584,7 @@ treat_only_at_6/never_treat
 
 
 ```{r,eval=FALSE}
+
 saveRDS(list(treat_2_natural = treat_at_2_then_natural/dont_treat_6_weeks_then_natural,
               treat_4_natural = treat_at_4_then_natural/dont_treat_6_weeks_then_natural,
               treat_6_natural = treat_at_6_then_natural/dont_treat_6_weeks_then_natural,
@@ -591,13 +594,39 @@ saveRDS(list(treat_2_natural = treat_at_2_then_natural/dont_treat_6_weeks_then_n
               ), here("data/truth_trials.RDS"))
 
 
+```
 
+```{r counterfactual-results}
+
+truth <- readRDS(here("data/truth_trials.RDS"))
+
+truth_df <- tibble(Regime = c("A1=1,A2=0,A3=0",
+                  "A1=0,A2=1,A3=0",
+                  "A1=0,A2=0,A3=1",
+                  "A1=1,A2=0,A3=0",
+                  "A1=0,A2=1,A3=0",
+                  "A1=0,A2=0,A3=1"),
+       `Regime After Interval 3` = c(
+         rep("Natural", 3),
+         rep("Never Treat", 3)
+       ),
+       `Mean` = c(truth$treat_2_natural,
+                  truth$treat_4_natural,
+                  truth$treat_6_natural,
+                  truth$only_2,
+                  truth$only_4,
+                  truth$only_6
+                  ))
+
+library(kableExtra)
+
+truth_df %>%
+  kbl() %>%
+  collapse_rows(columns=2)
 
 ```
 
-```{r counterfactual-results, results='asis'}
-
-truth <- readRDS(here("data/truth_trials.RDS"))
+```{r print-counterfactuals,include=FALSE}
 
 cat("A1=1,A2=0,A3=0, natural", "\n")
 truth$treat_2_natural
@@ -616,9 +645,11 @@ truth$only_6
 ```
 
 
-# Simulate Data 
-
 ```{r run-simulation}
+
+##################################################
+# for all time points - not trial set-up
+##################################################
 
 # for simplicity, suppose study start is in January 
 # intervention must be a function that outputs A1, A2 (assigned treatments) 
@@ -682,7 +713,7 @@ run_simulation <- function(years=5, n_packs=30,
 
 ```
 
-```{r get-biweekly-dat, class.source="fold-show",eval=FALSE}
+```{r get-biweekly-dat, eval=FALSE}
 
 # biweekly
 # current_dat <- run_simulation(years=10, 
@@ -1522,11 +1553,13 @@ df <- add_factors(df)
 cat("Follow natural treatment after week 6")
 
 get_treatment_effect(df, delta=3, form="outcome~treatment_factor",
-                     superlearner=FALSE) 
+                     superlearner=FALSE) %>%
+  kbl() 
 
 cat("Never treat after week 6")
 get_treatment_effect(df, delta=8, form="outcome~treatment_factor_never_treat",
-                     superlearner=FALSE) 
+                     superlearner=FALSE) %>%
+  kbl()
 
 ```
 
@@ -1534,9 +1567,9 @@ get_treatment_effect(df, delta=8, form="outcome~treatment_factor_never_treat",
 
 ```{r run-model-many-times}
 
-results <- map_df(1:200, ~{
+results <- map_df(1:300, ~{
   
-    dat <- map_df(1:300, ~run_trial(weeks=16,
+    dat <- map_df(1:400, ~run_trial(weeks=16,
                                            n_packs=2,
                                            interval_length=2,
                                     intervention=NULL) %>%
@@ -1564,7 +1597,7 @@ saveRDS(results, here("data/model_results.RDS"))
 ```
 
 
-```{r, fig.width=8, fig.height=6}
+```{r, fig.width=8, fig.height=8}
 
 results <- readRDS(here("data/model_results.RDS"))
 
@@ -1596,7 +1629,7 @@ coverage <- results %>%
 
 results %>%
   ggplot(aes(x=value)) +
-  geom_histogram(bins=22) +
+  geom_histogram(bins=25) +
   geom_vline(aes(xintercept=truth, color="True Value"),
              data=truth_df,
              linetype=2) +
@@ -1608,7 +1641,7 @@ results %>%
         A3_only = "A1 = 0, A2 = 0, A3 = 1"
       ))) +
   theme_c(strip.text=element_text(
-    size=14, color="white",  face="bold",
+    size=12, color="white",  face="bold",
     margin = margin(t = 8, r = 8, b = 8, l = 8)),
     legend.position="top",
     legend.text=element_text(size=14))  +
